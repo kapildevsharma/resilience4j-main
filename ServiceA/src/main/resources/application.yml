@@ -31,7 +31,7 @@ resilience4j:
     instances:
       serviceA:
         maxAttempts: 3 # Number of retry attempts
-        waitDuration: 10s # Wait duration between retries
+        waitDuration: 1s # Wait duration between retries
 
   ratelimiter:
     instances:
@@ -53,3 +53,5 @@ resilience4j:
         coreThreadPoolSize: 2
         maxThreadPoolSize: 4
         queueCapacity: 10
+
+# Execution Order: RateLimiter → Bulkhead → Retry → CircuitBreaker

@@ -21,7 +21,7 @@ public class ConsumeCloudAPIController {
 	@Autowired
 	private RestTemplate restTemplate;
 
-	private static final String RETRTY_DATA = "retryServcie";
+	private static final String RETRY_DATA = "retryServcie";
 	private static final String CIRCUIT_BREAKER = "circuitBreakerService";
 	private static final String RATE_LIMITER = "rateLimiterService";
     private static final String THREAD_POOL_BULKHEAD = "threadPoolBulkheadService";
@@ -40,7 +40,7 @@ public class ConsumeCloudAPIController {
 		return restTemplate.getForObject(url, String.class);	}
 
 	@GetMapping("/retryService")
-	@Retry(name = RETRTY_DATA)
+	@Retry(name = RETRY_DATA)
 	public String getRetryServcie() {
 		String url = BASE_URL + "b";
 		System.out.println("RateLimiter method called " + " times at " + new Date());
@@ -48,10 +48,15 @@ public class ConsumeCloudAPIController {
 	}
 
 	@GetMapping("/circuitBreakerService")
-	@CircuitBreaker(name = CIRCUIT_BREAKER, fallbackMethod = "fallbackMethod")
-    @Retry(name = RETRTY_DATA)
-    @RateLimiter(name = RATE_LIMITER)
+    // Bulkhead → RateLimiter → CircuitBreaker → Retry → Service Call
+    // Bulkhead limits threads first
+    //RateLimiter controls traffic
+    //CircuitBreaker monitors failures
+    //Retry handles transient failures
     @Bulkhead(name = THREAD_POOL_BULKHEAD, type = Bulkhead.Type.THREADPOOL)
+    @RateLimiter(name = RATE_LIMITER, fallbackMethod = "serviceAFallback")
+    @CircuitBreaker(name = CIRCUIT_BREAKER, fallbackMethod = "serviceAFallback")
+    @Retry(name = RETRY_DATA, fallbackMethod = "serviceAFallback")
     public String getCircuitBreaker() {
 		String url = BASE_URL + "b";
 		System.out.println("CircuitBreaker method called " + " times at " + new Date());

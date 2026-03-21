@@ -41,16 +41,15 @@ resilience4j:
         limitRefreshPeriod: 10s
         timeoutDuration: 3s # Wait up to 3 seconds for permission before failing
 
-  resilience4j:
-    bulkhead: # Semaphore Bulkhead
-      instances:
-        bulkheadService:
-          maxConcurrentCalls: 5
-          maxWaitDuration: 2s
+  bulkhead: # Semaphore Bulkhead
+    instances:
+      bulkheadService:
+        maxConcurrentCalls: 5  # Only 5 parallel requests allowed
+        maxWaitDuration: 2s
 
-    thread-pool-bulkhead: # ThreadPool Bulkhead use in microservices
-      instances:
-        threadPoolBulkheadService:
-          coreThreadPoolSize: 2
-          maxThreadPoolSize: 4
-          queueCapacity: 10
+  thread-pool-bulkhead: # ThreadPool Bulkhead use in microservices
+    instances:
+      threadPoolBulkheadService:
+        coreThreadPoolSize: 2
+        maxThreadPoolSize: 4
+        queueCapacity: 10

@@ -1,0 +1,5 @@
+{"properties": [{
+  "name": "management.endpoints.audit.enabled",
+  "type": "java.lang.String",
+  "description": "A description for 'management.endpoints.audit.enabled'"
+}]}

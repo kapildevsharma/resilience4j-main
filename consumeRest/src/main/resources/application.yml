@@ -1,0 +1,67 @@
+server:
+  port: 8087
+
+management:
+  health:
+    circuitbreakers:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: always
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      circuitBreakerService:
+        registerHealthIndicator: true #Integrates with Spring Boot actuator health endpoint.
+        slidingWindowSize: 10 #Number of calls used to calculate the failure rate. Here, the circuit breaker looks at the last 10 calls.
+        failureRateThreshold: 50 #  If 50% or more of the calls fail in the sliding window, the circuit breaker opens.
+        waitDurationInOpenState: 10s # When the circuit is OPEN, it will stay open for 10 seconds before transitioning to HALF_OPEN.
+        automaticTransitionFromOpenToHalfOpenEnabled: true # Enables automatic transition from OPEN to HALF_OPEN after the waitDurationInOpenState elapses 
+        permittedNumberOfCallsInHalfOpenState: 3 #While in HALF_OPEN state, only 3 test calls are allowed. If they succeed, the circuit closes again. If even one fails (depending on other config), it may go back to OPEN.
+        minimumNumberOfCalls: 5  # Circuit breaker won’t calculate failure rate unless at least 5 calls have been made
+        eventConsumerBufferSize: 10 # Number of events stored for circuit breaker monitoring. Helps with debugging and metrics
+        slidingWindowType: COUNT_BASED #  Uses a fixed number of calls (here 10) to calculate failure rate
+
+  retry:
+    instances:
+      retryService:
+        maxAttempts: 3 # Number of retry attempts
+        waitDuration: 10s # Wait duration between retries
+        retryExceptions:
+         - java.io.IOException
+         - org.springframework.web.client.HttpServerErrorException
+        ignore-exceptions:
+         - java.lang.IllegalArgumentException
+        #  retry delay increases to reduce pressure on a failing service
+        enableExponentialBackoff: true # Optional for backoff strategy
+        exponentialBackoffMultiplier: 2 # Multiplier for backoff (optional)
+
+  ratelimiter:
+    instances:
+      rateLimiterService:
+        registerHealthIndicator: false
+        limitForPeriod: 10 # allow 10 request only in 10 seconds
+        limitRefreshPeriod: 10s
+        timeoutDuration: 3s
+
+  resilience4j:
+    bulkhead: # Semaphore Bulkhead
+      instances:
+        bulkheadService:
+          maxConcurrentCalls: 5 # Only 5 concurrent executions allowed
+          maxWaitDuration: 2s
+
+#  USe Calls external REST API, DB, kafka Call or Uses Thread.sleep or Makes blocking I/O
+# By using a ThreadPool Bulkhead, you can isolate these calls in a separate thread pool, preventing them from blocking the main application threads and improving overall resilience.
+    thread-pool-bulkhead: # ThreadPool Bulkhead use in microservices
+      instances:
+        threadPoolBulkheadService:
+          coreThreadPoolSize: 2
+          maxThreadPoolSize: 4
+          queueCapacity: 10
+

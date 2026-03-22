@@ -3,21 +3,20 @@ package com.cosume.cosumeRest.entities;
 import java.util.HashSet;
 import java.util.Set;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 //ManytoMany annotation  with Student and Course class
+// course table --> id | name
+
+/*CREATE TABLE course (
+        id INT PRIMARY KEY,
+        name VARCHAR(100)
+);*/
+
 
 @Entity
 @Table(name = "course")
@@ -33,10 +32,11 @@ public class Course {
 
     @Column(name = "name")
     private String name;
-    
-    // mappedBy : This side of the relationship is not in charge of the database join table — the other class is
-    // // This side does NOT manage the join table
-    @ManyToMany(mappedBy = "courses", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private Set<Student> students = new HashSet<>();
+    // Many-to-Many inverse side
+    @ManyToMany(mappedBy = "courses", cascade =  {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.LAZY)
+    private Set<Student> students = new HashSet<>();;
+    // One-to-Many for mainCourse relationship
+    @OneToMany(mappedBy = "mainCourse", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    private Set<Student> mainStudents = new HashSet<>();
 
- }
+}

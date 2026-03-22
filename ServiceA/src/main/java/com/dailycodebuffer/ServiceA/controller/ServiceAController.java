@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 import java.util.Date;
 import java.util.concurrent.CompletableFuture;
@@ -24,6 +26,9 @@ public class ServiceAController {
 
 	@Autowired
 	private RestTemplate restTemplate;
+
+    @Autowired
+    private WebClient webClient;
 
 	private static final String BASE_URL = "http://localhost:8081/";
     private static final String RETRY_DATA = "retryService";
@@ -74,7 +79,16 @@ public class ServiceAController {
     public String getResilience() {
         String url = BASE_URL + "b";
         System.out.println("resilience method called times at " + new Date());
-        return restTemplate.getForObject(url, String.class);
+        // Traditional blocking call
+        String response = restTemplate.getForObject(url, String.class);
+
+        // Reactive non-blocking example using WebClient
+        Mono<String> userMono = webClient.get().uri(url).retrieve().bodyToMono(String.class);
+        // If you need to block and get the value (not recommended for reactive apps), use block():
+        response = userMono.block();
+        // Return the blocking RestTemplate response by default to keep existing behavior
+        return response;
+
     }
 
 

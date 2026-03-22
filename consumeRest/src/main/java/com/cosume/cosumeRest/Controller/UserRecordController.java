@@ -1,4 +1,4 @@
-package com.cosume.cosumeRest.controller;
+package com.cosume.cosumeRest.Controller;
 
 import com.cosume.cosumeRest.entities.User;
 import com.cosume.cosumeRest.entities.UserRecord;

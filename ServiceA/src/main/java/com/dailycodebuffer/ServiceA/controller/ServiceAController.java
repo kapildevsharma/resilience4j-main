@@ -106,13 +106,18 @@ public class ServiceAController {
     @Bulkhead(name = THREAD_POOL_BULKHEAD, type = Bulkhead.Type.THREADPOOL) // MUST use CompletableFuture
     public CompletableFuture<String> getBulkHead() {
 
-        return CompletableFuture.supplyAsync(() -> {
+       /* return CompletableFuture.supplyAsync(() -> {
             String url = BASE_URL + "b";
             System.out.println("BulkHead method called at " + new Date());
             return restTemplate.getForObject(url, String.class);
-        });
+        });*/
+
+        return webClient.get()
+                .uri(BASE_URL + "b")
+                .retrieve()
+                .bodyToMono(String.class).toFuture();
     }
-	public String serviceAFallback(Exception e) {
+	public String serviceAFallback(Throwable e) {
 		return "This is a fallback method for Service A";
 	}
 }

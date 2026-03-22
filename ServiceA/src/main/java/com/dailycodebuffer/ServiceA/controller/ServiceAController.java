@@ -4,14 +4,17 @@ import io.github.resilience4j.bulkhead.annotation.Bulkhead;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.github.resilience4j.retry.annotation.Retry;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.Date;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -24,11 +27,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RequestMapping("/a")
 public class ServiceAController {
 
-	@Autowired
-	private RestTemplate restTemplate;
+    private static final Logger log = LoggerFactory.getLogger(ServiceAController.class);
 
-    @Autowired
-    private WebClient webClient;
+    private final RestTemplate restTemplate;
+    private final WebClient webClient;
+
+    public ServiceAController(RestTemplate restTemplate, WebClient webClient) {
+        this.restTemplate = restTemplate;
+        this.webClient = webClient;
+    }
 
 	private static final String BASE_URL = "http://localhost:8081/";
     private static final String RETRY_DATA = "retryService";
@@ -44,7 +51,7 @@ public class ServiceAController {
 	@Retry(name = RETRY_DATA, fallbackMethod = "serviceAFallback")
 	public String serviceA() {
 		String url = BASE_URL + "b";
-		System.out.println("Retry method called " + count.getAndIncrement() + " times at " + new Date());
+		log.info("Retry method called {} times at {}", count.getAndIncrement(), new Date());
 		return restTemplate.getForObject(url, String.class);
 	}
 
@@ -52,7 +59,7 @@ public class ServiceAController {
 	@CircuitBreaker(name = CIRCUIT_BREAKER, fallbackMethod = "serviceAFallback")
 	public String serviceACircuitBreaker() {
 		String url = BASE_URL + "b";
-		System.out.println("CircuitBreaker method called times at " + new Date());
+		log.info("CircuitBreaker method called at {}", new Date());
 		return restTemplate.getForObject(url, String.class);
 	}
 
@@ -61,7 +68,7 @@ public class ServiceAController {
 	public String serviceALimiter() {
 
 		String url = BASE_URL + "b";
-		System.out.println("RateLimiter method called " + " times at " + new Date());
+		log.info("RateLimiter method called at {}", new Date());
 		return restTemplate.getForObject(url, String.class);
 	}
 
@@ -78,27 +85,48 @@ public class ServiceAController {
     @Retry(name = RETRY_DATA, fallbackMethod = "serviceAFallback")
     public String getResilience() {
         String url = BASE_URL + "b";
-        System.out.println("resilience method called times at " + new Date());
-        // Traditional blocking call
-        String response = restTemplate.getForObject(url, String.class);
+        log.info("resilience method called at {}", new Date());
 
-        // Reactive non-blocking example using WebClient
-        Mono<String> userMono = webClient.get().uri(url).retrieve().bodyToMono(String.class);
-        // If you need to block and get the value (not recommended for reactive apps), use block():
-        response = userMono.block();
-        // Return the blocking RestTemplate response by default to keep existing behavior
-        return response;
+        // Prefer non-blocking WebClient with timeout and graceful fallback, but preserve API contract (String return)
+        Mono<String> userMono = webClient.get()
+                .uri(url)
+                .retrieve()
+                .bodyToMono(String.class)
+                .timeout(Duration.ofSeconds(5))
+                .doOnSubscribe(s -> log.debug("WebClient call started to {}", url))
+                .doOnSuccess(s -> log.debug("WebClient call succeeded"))
+                .doOnError(e -> log.warn("WebClient call failed: {}", e.toString()));
+
+        // Block with a timeout and fall back to RestTemplate or a simple message on error
+        try {
+            return userMono.block();
+        } catch (Exception ex) {
+            log.warn("Reactive call failed, falling back to RestTemplate: {}", ex.toString());
+            try {
+                return restTemplate.getForObject(url, String.class);
+            } catch (Exception rex) {
+                log.error("RestTemplate fallback failed: {}", rex.toString());
+                throw ex; // let Resilience4j handle fallback
+            }
+        }
 
     }
 
 
     @GetMapping("/breakerRetry")
-    @Retry(name = RETRY_DATA, fallbackMethod = "serviceAFallback")
-    @CircuitBreaker(name = CIRCUIT_BREAKER, fallbackMethod = "serviceAFallback")
-    public String getBreakerRetry() {
+    @Retry(name = RETRY_DATA, fallbackMethod = "fluxFallback")
+    @CircuitBreaker(name = CIRCUIT_BREAKER, fallbackMethod = "fluxFallback")
+    public Flux<String> getBreakerRetry() {
         String url = BASE_URL + "b";
-        System.out.println("breakerRetry method called times at " + new Date());
-        return restTemplate.getForObject(url, String.class);
+        log.info("breakerRetry method called at {}", new Date());
+      //  return restTemplate.getForObject(url, String.class);
+
+        return webClient.get()
+                .uri(url)
+                .retrieve()
+                .bodyToFlux(String.class)
+                .timeout(Duration.ofSeconds(5))
+                .doOnError(e -> log.warn("Flux call failed: {}", e.toString()));
     }
 
 
@@ -112,12 +140,24 @@ public class ServiceAController {
             return restTemplate.getForObject(url, String.class);
         });*/
 
+        // return a future from the reactive pipeline with timeout and fallback
         return webClient.get()
                 .uri(BASE_URL + "b")
                 .retrieve()
-                .bodyToMono(String.class).toFuture();
+                .bodyToMono(String.class)
+                .timeout(Duration.ofSeconds(5))
+                .doOnError(e -> log.warn("BulkHead reactive call failed: {}", e.toString()))
+                .onErrorResume(e -> Mono.just("Bulkhead fallback response"))
+                .toFuture();
     }
+
 	public String serviceAFallback(Throwable e) {
+		log.warn("serviceAFallback triggered: {}", e.toString());
 		return "This is a fallback method for Service A";
 	}
+
+    public Flux<String> fluxFallback(Throwable e) {
+        log.warn("fluxFallback triggered: {}", e.toString());
+        return Flux.just("This is a fluxFallback for Service A: " + e.getMessage());
+    }
 }

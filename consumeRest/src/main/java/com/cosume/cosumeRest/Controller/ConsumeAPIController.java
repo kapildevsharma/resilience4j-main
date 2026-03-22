@@ -7,9 +7,6 @@ package com.cosume.cosumeRest.Controller;
 
 import java.net.URI;
 import java.util.List;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,14 +14,19 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import com.cosume.cosumeRest.entities.Person;
 import com.cosume.cosumeRest.service.PersonService;
 
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
+@RequestMapping("/api")
 public class ConsumeAPIController {
 
     private final PersonService personService;
@@ -36,12 +38,13 @@ public class ConsumeAPIController {
     }
 
     @GetMapping("/persons")
-    public List<Person> getAllPersons() {
+    public ResponseEntity<List<Person>> getAllPersons() {
         log.info("getAllPersons called");
-        return personService.findAll();
+        List<Person> all = personService.findAll();
+        return ResponseEntity.ok(all);
     }
 
-    @GetMapping("/person/{personId}")
+    @GetMapping("/persons/{personId}")
     public ResponseEntity<Person> getPersonWithId(@PathVariable Integer personId) {
         log.info("get person information by id={}", personId);
         return personService.findById(personId)
@@ -49,7 +52,7 @@ public class ConsumeAPIController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
-    @PostMapping("/person")
+    @PostMapping("/persons")
     public ResponseEntity<Person> addPerson(@Valid @RequestBody Person person) {
         Person saved = personService.create(person);
         log.info("Saved new person: {}", saved);
@@ -62,7 +65,7 @@ public class ConsumeAPIController {
         }
     }
 
-    @PutMapping("/person/{personId}")
+    @PutMapping("/persons/{personId}")
     public ResponseEntity<Person> updateOrCreatePerson(@Valid @RequestBody Person newPerson, @PathVariable Integer personId) {
         PersonService.UpsertResult<Person> result = personService.upsert(personId, newPerson);
         if (result.isCreated()) {
@@ -72,7 +75,7 @@ public class ConsumeAPIController {
         }
     }
 
-    @DeleteMapping("/person/{personId}")
+    @DeleteMapping("/persons/{personId}")
     public ResponseEntity<Void> deletePerson(@PathVariable int personId) {
         boolean deleted = personService.delete(personId);
         if (deleted) {
